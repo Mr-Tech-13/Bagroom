@@ -24,10 +24,17 @@ async function save(message) {
   $('#save-status').textContent = 'Saving…';
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
-    const response = await fetch('/api/state', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(state) });
-    state = await response.json();
-    $('#save-status').textContent = `Saved ${formatTime(state.updatedAt)}`;
-    if (message) toast(message);
+    try {
+      const response = await fetch('/api/state', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(state) });
+      if (!response.ok) throw new Error('Save failed');
+      const saved = await response.json();
+      state.updatedAt = saved.updatedAt;
+      $('#save-status').textContent = `Saved ${formatTime(state.updatedAt)}`;
+      if (message) toast(message);
+    } catch (error) {
+      $('#save-status').textContent = 'Save failed';
+      toast('Could not save — please try again');
+    }
   }, 180);
 }
 
@@ -123,13 +130,39 @@ function renderRoster() {
 function bindRosterEvents() {
   document.querySelectorAll('#uld-table tr[data-id]').forEach((row) => {
     const uld = findUld(row.dataset.id);
-    row.querySelector('.commodity-input').addEventListener('change', (event) => {
-      const value = event.target.value.trim().toUpperCase();
-      if (value && !isCommodity(value)) { event.target.value = uld.commodity || ''; return toast('Use B1A–B4X or a listed special code'); }
-      uld.commodity = value; renderBoard(); save('Commodity updated');
+    const commodityInput = row.querySelector('.commodity-input');
+    commodityInput.addEventListener('input', () => {
+      commodityInput.value = commodityInput.value.toUpperCase().replace(/\s/g, '');
+      if (isCommodity(commodityInput.value)) commitCommodity(commodityInput, uld, false);
+    });
+    commodityInput.addEventListener('blur', () => commitCommodity(commodityInput, uld, true));
+    commodityInput.addEventListener('change', () => commitCommodity(commodityInput, uld, true));
+    commodityInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        commitCommodity(commodityInput, uld, true);
+        commodityInput.blur();
+      }
     });
     row.querySelector('.t2t-input').addEventListener('change', (event) => { uld.t2t = event.target.checked; renderBoard(); save('T2T status updated'); });
   });
+}
+
+function commitCommodity(input, uld, announce) {
+  const value = input.value.trim().toUpperCase();
+  input.value = value;
+  if (value && !isCommodity(value)) {
+    input.value = uld.commodity || '';
+    toast('Use B1A–B4X or a listed special code');
+    return false;
+  }
+  if (uld.commodity === value) return true;
+  uld.commodity = value;
+  input.classList.add('saved');
+  setTimeout(() => input.classList.remove('saved'), 900);
+  renderBoard();
+  save(announce ? 'Commodity saved' : null);
+  return true;
 }
 
 function isCommodity(value) { return /^(B[1-4][A-X]|MXT|BJ|BY|B0X|BTX)$/.test(value); }
