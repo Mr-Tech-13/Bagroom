@@ -1,0 +1,15 @@
+services:
+  bagroom:
+    image: node:24-alpine
+    working_dir: /app
+    command: npm start
+    ports:
+      - "8083:8083"
+    environment:
+      PORT: 8083
+      HOST: 0.0.0.0
+      DATA_FILE: /app/data/state.json
+    volumes:
+      - ./:/app
+      - ./data:/app/data
+    restart: unless-stopped

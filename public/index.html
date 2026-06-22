@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bagroom ULD Tracker</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="#board" aria-label="ULD Assignment Tracker home">
+        <span class="brand-mark">B</span>
+        <span><strong>ULD Assignment</strong><small>Bagroom control</small></span>
+      </a>
+      <nav aria-label="Primary navigation">
+        <button class="nav-button active" data-page="board">Assignment board</button>
+        <button class="nav-button" data-page="setup">Setup</button>
+      </nav>
+      <div class="status"><span></span><strong>Live</strong><small id="save-status">Loading…</small></div>
+    </header>
+
+    <main>
+      <section id="board-page" class="page active">
+        <div class="page-heading">
+          <div><p class="eyebrow">OPERATIONS OVERVIEW</p><h1>Bagroom assignments</h1><p>Drag containers between chute positions and spare parking.</p></div>
+          <div class="date-chip" id="today"></div>
+        </div>
+        <div class="summary" id="summary"></div>
+        <div class="move-banner" id="move-banner" aria-live="polite"><span>Tap a ULD, then tap its destination.</span><button id="cancel-move">Cancel</button></div>
+        <div class="board-layout">
+          <section class="panel board-panel">
+            <div class="panel-heading"><div><p class="eyebrow">ACTIVE FLOOR</p><h2>Chute grid</h2></div><span class="hint"><span class="desktop-hint">Drag</span><span class="mobile-hint">Tap</span> to reassign</span></div>
+            <div class="grid" id="assignment-grid"></div>
+          </section>
+          <aside class="panel spare-panel">
+            <div class="panel-heading"><div><p class="eyebrow">OUTSIDE</p><h2>Spare parking</h2></div><span class="count" id="spare-count">0</span></div>
+            <p class="muted">Containers ready to move onto the floor.</p>
+            <div class="spare-drop" id="spare-drop"></div>
+          </aside>
+        </div>
+      </section>
+
+      <section id="setup-page" class="page">
+        <div class="page-heading"><div><p class="eyebrow">CONFIGURATION</p><h1>Setup</h1><p>Import container numbers, define the load plan, and assign commodities.</p></div></div>
+        <section class="panel chute-setup">
+          <div class="panel-heading"><div><p class="eyebrow">BAGROOM LAYOUT</p><h2>Chute names</h2><p class="muted">Enter the MU identifier for each chute using the MU### format.</p></div></div>
+          <div class="chute-name-grid">
+            <label><span>Chute 1</span><input class="chute-name-input" data-chute-index="0" placeholder="MU101" maxlength="5" /></label>
+            <label><span>Chute 2</span><input class="chute-name-input" data-chute-index="1" placeholder="MU102" maxlength="5" /></label>
+            <label><span>Chute 3</span><input class="chute-name-input" data-chute-index="2" placeholder="MU103" maxlength="5" /></label>
+          </div>
+          <div class="actions"><button class="button primary" id="save-chutes">Save chute names</button><button class="button reset" id="reset-chutes">Reset chute names</button><span id="chute-note" class="form-note"></span></div>
+        </section>
+        <div class="setup-grid single-card">
+          <section class="panel setup-card">
+            <div class="step">01</div><h2>Import ULD numbers</h2>
+            <p class="muted">Paste one ULD per line. Add Row 1, Row 2, Row 3, and Spare headings to place them immediately; a plain list starts in spare.</p>
+            <textarea id="uld-import" rows="10" placeholder="Row 1&#10;QKE70516&#10;AKE92264&#10;AKE47803&#10;&#10;Row 2&#10;QKE66306&#10;AKE62338&#10;&#10;Spare&#10;QKE70473"></textarea>
+            <div class="actions"><button class="button primary" id="import-ulds">Import numbers</button><button class="button reset" id="reset-ulds">Reset imported ULDs</button><span id="import-note" class="form-note"></span></div>
+          </section>
+        </div>
+        <section class="panel roster-panel">
+          <div class="panel-heading"><div><p class="eyebrow">CONTAINER ROSTER</p><h2>ULD commodities</h2><p class="muted">Assign a commodity and mark special transfer-to-transfer containers.</p></div><div class="roster-tools"><label class="search"><span>⌕</span><input id="uld-search" placeholder="Search ULDs" /></label><button class="button reset compact" id="reset-uld-details">Reset ULD details</button></div></div>
+          <datalist id="commodity-options"></datalist>
+          <div class="table-wrap"><table><thead><tr><th>ULD number</th><th>Commodity</th><th>T2T</th><th>Current position</th></tr></thead><tbody id="uld-table"></tbody></table></div>
+        </section>
+      </section>
+    </main>
+    <div id="toast" role="status" aria-live="polite"></div>
+    <script src="/app.js"></script>
+  </body>
+</html>

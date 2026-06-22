@@ -1,0 +1,17 @@
+{
+  "name": "bagroom-uld-tracker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Bagroom ULD assignment tracker",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch-path=public --watch-path=server.js server.js",
+    "lint": "node scripts/lint.js",
+    "build": "node scripts/build.js",
+    "security:secrets": "node scripts/check-secrets.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

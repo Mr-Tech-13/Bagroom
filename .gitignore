@@ -1,0 +1,29 @@
+node_modules/
+dist/
+
+# Runtime state and databases
+data/*
+!data/.gitkeep
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+
+# Environment files and local secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+credentials.json
+secrets.json
+
+# Local tooling
+.DS_Store
+npm-debug.log*
+.idea/
+.vscode/
