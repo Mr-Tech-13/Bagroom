@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Bagroom ULD Tracker</title>
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/styles.css?v=20260622-2" />
   </head>
   <body>
     <header class="topbar">
@@ -75,9 +75,9 @@
     <dialog class="export-dialog" id="export-dialog">
       <div class="export-dialog-heading"><div><p class="eyebrow">PNG PREVIEW</p><h2>Floor layout ready</h2></div><button class="dialog-close" id="close-export" type="button" aria-label="Close export preview">×</button></div>
       <img id="export-preview" alt="Exported Bagroom floor layout preview" />
-      <div class="export-dialog-actions"><button class="button" id="cancel-export" type="button">Close</button><a class="button primary" id="save-export" download>Save PNG</a></div>
+      <div class="export-dialog-actions"><button class="button" id="cancel-export" type="button">Close</button><button class="button" id="share-export" type="button" hidden>Share PNG</button><a class="button primary" id="save-export" download>Download PNG</a></div>
     </dialog>
     <div id="toast" role="status" aria-live="polite"></div>
-    <script src="/app.js"></script>
+    <script src="/app.js?v=20260622-2"></script>
   </body>
 </html>

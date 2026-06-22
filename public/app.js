@@ -8,6 +8,7 @@ let draggedUld = null;
 let selectedUld = null;
 let saveTimer;
 let exportPngUrl = null;
+let exportPngBlob = null;
 
 const $ = (selector) => document.querySelector(selector);
 const escapeHtml = (value) => String(value).replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character]);
@@ -183,7 +184,8 @@ async function exportFloorPhoto() {
     canvas.height = Math.max(980, 240 + spares.length * 112);
     const context = canvas.getContext('2d');
     const rounded = (x, y, width, height, radius, fill, stroke) => {
-      context.beginPath(); context.roundRect(x, y, width, height, radius);
+      const r = Math.min(radius, width / 2, height / 2);
+      context.beginPath(); context.moveTo(x + r, y); context.lineTo(x + width - r, y); context.quadraticCurveTo(x + width, y, x + width, y + r); context.lineTo(x + width, y + height - r); context.quadraticCurveTo(x + width, y + height, x + width - r, y + height); context.lineTo(x + r, y + height); context.quadraticCurveTo(x, y + height, x, y + height - r); context.lineTo(x, y + r); context.quadraticCurveTo(x, y, x + r, y); context.closePath();
       if (fill) { context.fillStyle = fill; context.fill(); }
       if (stroke) { context.strokeStyle = stroke; context.lineWidth = 2; context.stroke(); }
     };
@@ -231,11 +233,16 @@ async function exportFloorPhoto() {
 
     const png = await new Promise((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('PNG creation failed')), 'image/png'));
     if (exportPngUrl) URL.revokeObjectURL(exportPngUrl);
+    exportPngBlob = png;
     exportPngUrl = URL.createObjectURL(png);
     $('#export-preview').src = exportPngUrl;
+    const filename = `bagroom-layout-${new Date().toISOString().slice(0, 10)}.png`;
     $('#save-export').href = exportPngUrl;
-    $('#save-export').download = `bagroom-layout-${new Date().toISOString().slice(0, 10)}.png`;
-    $('#export-dialog').showModal();
+    $('#save-export').download = filename;
+    const shareFile = new File([exportPngBlob], filename, { type: 'image/png' });
+    $('#share-export').hidden = !(navigator.share && navigator.canShare?.({ files: [shareFile] }));
+    const dialog = $('#export-dialog');
+    if (typeof dialog.showModal === 'function') dialog.showModal(); else dialog.setAttribute('open', '');
     toast('Floor photo ready');
   } catch (error) {
     toast('Could not create floor photo');
@@ -347,8 +354,20 @@ $('#export-dialog').addEventListener('click', (event) => { if (event.target === 
 $('#export-dialog').addEventListener('close', () => {
   if (exportPngUrl) URL.revokeObjectURL(exportPngUrl);
   exportPngUrl = null;
+  exportPngBlob = null;
   $('#export-preview').removeAttribute('src');
   $('#save-export').removeAttribute('href');
+  $('#share-export').hidden = true;
+});
+$('#share-export').addEventListener('click', async () => {
+  if (!exportPngBlob) return toast('Create the floor photo again');
+  const filename = `bagroom-layout-${new Date().toISOString().slice(0, 10)}.png`;
+  const file = new File([exportPngBlob], filename, { type: 'image/png' });
+  try {
+    await navigator.share({ title: 'Bagroom Floor Layout', files: [file] });
+  } catch (error) {
+    if (error.name !== 'AbortError') toast('Sharing failed — use Download PNG');
+  }
 });
 $('#commodity-options').innerHTML = [...specialCommodities, ...standardCommodities].map((code) => `<option value="${code}"></option>`).join('');
 $('#today').textContent = new Intl.DateTimeFormat([], { weekday: 'short', month: 'short', day: 'numeric' }).format(new Date());

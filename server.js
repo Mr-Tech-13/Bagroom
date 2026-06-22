@@ -44,7 +44,7 @@ function writeState(value) {
 }
 
 function json(response, status, value) {
-  response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
+  response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
   response.end(JSON.stringify(value));
 }
 
@@ -55,7 +55,7 @@ function serveFile(request, response) {
   fs.readFile(filePath, (error, contents) => {
     if (error) return json(response, error.code === 'ENOENT' ? 404 : 500, { error: 'Not found' });
     const types = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.svg': 'image/svg+xml' };
-    response.writeHead(200, { 'Content-Type': `${types[path.extname(filePath)] || 'application/octet-stream'}; charset=utf-8` });
+    response.writeHead(200, { 'Content-Type': `${types[path.extname(filePath)] || 'application/octet-stream'}; charset=utf-8`, 'Cache-Control': 'no-store' });
     response.end(contents);
   });
 }
