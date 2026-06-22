@@ -7,6 +7,7 @@ let state = { ulds: [], requirements: [], chuteNames: ['', '', ''], assignments:
 let draggedUld = null;
 let selectedUld = null;
 let saveTimer;
+let exportPngUrl = null;
 
 const $ = (selector) => document.querySelector(selector);
 const escapeHtml = (value) => String(value).replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character]);
@@ -229,16 +230,13 @@ async function exportFloorPhoto() {
     spares.forEach((uld, index) => drawUld(uld, spareX + 18, 210 + index * 112, spareWidth - 36, 100));
 
     const png = await new Promise((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('PNG creation failed')), 'image/png'));
-    const pngUrl = URL.createObjectURL(png);
-    const link = document.createElement('a');
-    link.href = pngUrl;
-    link.download = `bagroom-layout-${new Date().toISOString().slice(0, 10)}.png`;
-    link.style.display = 'none';
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(pngUrl), 1000);
-    toast('Floor photo exported');
+    if (exportPngUrl) URL.revokeObjectURL(exportPngUrl);
+    exportPngUrl = URL.createObjectURL(png);
+    $('#export-preview').src = exportPngUrl;
+    $('#save-export').href = exportPngUrl;
+    $('#save-export').download = `bagroom-layout-${new Date().toISOString().slice(0, 10)}.png`;
+    $('#export-dialog').showModal();
+    toast('Floor photo ready');
   } catch (error) {
     toast('Could not create floor photo');
   } finally {
@@ -342,6 +340,16 @@ $('#reset-uld-details').addEventListener('click', () => {
 $('#uld-search').addEventListener('input', renderRoster);
 $('#cancel-move').addEventListener('click', () => { selectedUld = null; renderBoard(); });
 $('#export-photo').addEventListener('click', exportFloorPhoto);
+const closeExport = () => $('#export-dialog').close();
+$('#close-export').addEventListener('click', closeExport);
+$('#cancel-export').addEventListener('click', closeExport);
+$('#export-dialog').addEventListener('click', (event) => { if (event.target === $('#export-dialog')) closeExport(); });
+$('#export-dialog').addEventListener('close', () => {
+  if (exportPngUrl) URL.revokeObjectURL(exportPngUrl);
+  exportPngUrl = null;
+  $('#export-preview').removeAttribute('src');
+  $('#save-export').removeAttribute('href');
+});
 $('#commodity-options').innerHTML = [...specialCommodities, ...standardCommodities].map((code) => `<option value="${code}"></option>`).join('');
 $('#today').textContent = new Intl.DateTimeFormat([], { weekday: 'short', month: 'short', day: 'numeric' }).format(new Date());
 load().catch(() => { $('#save-status').textContent = 'Connection error'; toast('Could not load tracker data'); });
