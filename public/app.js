@@ -44,7 +44,7 @@ function spareUlds() { const assigned = assignedIds(); return state.ulds.filter(
 function findUld(id) { return state.ulds.find((uld) => uld.id === id); }
 
 function card(uld) {
-  return `<div class="uld-card ${selectedUld === uld.id ? 'selected' : ''}" draggable="true" tabindex="0" role="button" aria-label="Move ${escapeHtml(uld.number)}, commodity ${escapeHtml(uld.commodity || 'unassigned')}" data-uld-id="${escapeHtml(uld.id)}">${uld.t2t ? '<span class="t2t">T2T</span>' : ''}<span class="uld-shape" aria-hidden="true"><i></i></span><strong>${escapeHtml(uld.number)}</strong><span class="commodity ${uld.commodity ? '' : 'unset'}"><small>Commodity</small>${escapeHtml(uld.commodity || 'UNASSIGNED')}</span></div>`;
+  return `<div class="uld-card ${selectedUld === uld.id ? 'selected' : ''}" draggable="true" tabindex="0" role="button" aria-label="Move ${escapeHtml(uld.number)}, commodity ${escapeHtml(uld.commodity || 'unassigned')}" data-uld-id="${escapeHtml(uld.id)}">${uld.t2t ? '<span class="t2t">T2T</span>' : ''}<strong>${escapeHtml(uld.number)}</strong><span class="commodity ${uld.commodity ? '' : 'unset'}"><small>Commodity</small>${escapeHtml(uld.commodity || 'UNASSIGNED')}</span></div>`;
 }
 
 function render() {
