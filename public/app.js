@@ -170,6 +170,83 @@ function isCommodity(value) { return /^(B[1-4][A-X]|MXT|BJ|BY|B0X|BTX)$/.test(va
 function normalizeUldNumber(value) { const number = value.trim().toUpperCase(); return number.endsWith('EK') ? number : `${number}EK`; }
 function toast(message) { const node = $('#toast'); node.textContent = message; node.classList.add('show'); setTimeout(() => node.classList.remove('show'), 2200); }
 
+async function exportFloorPhoto() {
+  const button = $('#export-photo');
+  const originalLabel = button.textContent;
+  button.disabled = true;
+  button.textContent = 'Creating photo…';
+  try {
+    const canvas = document.createElement('canvas');
+    const spares = spareUlds();
+    canvas.width = 1600;
+    canvas.height = Math.max(980, 240 + spares.length * 112);
+    const context = canvas.getContext('2d');
+    const rounded = (x, y, width, height, radius, fill, stroke) => {
+      context.beginPath(); context.roundRect(x, y, width, height, radius);
+      if (fill) { context.fillStyle = fill; context.fill(); }
+      if (stroke) { context.strokeStyle = stroke; context.lineWidth = 2; context.stroke(); }
+    };
+    const text = (value, x, y, size, color = '#eef8f4', weight = 600, align = 'left') => {
+      context.fillStyle = color; context.font = `${weight} ${size}px system-ui, sans-serif`; context.textAlign = align; context.fillText(String(value), x, y);
+    };
+    const drawUld = (uld, x, y, width, height) => {
+      rounded(x, y, width, height, 12, '#1b493c', '#4a806e');
+      text(uld.number, x + width / 2, y + 48, 21, '#ffffff', 800, 'center');
+      const commodity = uld.commodity || 'UNASSIGNED';
+      const badgeWidth = Math.max(118, context.measureText(commodity).width + 52);
+      rounded(x + (width - badgeWidth) / 2, y + 65, badgeWidth, 38, 19, uld.commodity ? '#b9f15d' : '#2d5548');
+      text(`COMMODITY  ${commodity}`, x + width / 2, y + 90, 13, uld.commodity ? '#10231d' : '#d1e0da', 900, 'center');
+      if (uld.t2t) { rounded(x + width - 57, y + 10, 45, 27, 6, '#ff9d55'); text('T2T', x + width - 34, y + 29, 12, '#251308', 900, 'center'); }
+    };
+
+    context.fillStyle = '#08110f'; context.fillRect(0, 0, canvas.width, canvas.height);
+    const gradient = context.createRadialGradient(1250, 0, 0, 1250, 0, 800);
+    gradient.addColorStop(0, 'rgba(77,157,122,.20)'); gradient.addColorStop(1, 'rgba(8,17,15,0)');
+    context.fillStyle = gradient; context.fillRect(0, 0, canvas.width, canvas.height);
+    text('BAGROOM FLOOR LAYOUT', 55, 67, 30, '#eef8f4', 850);
+    text(new Intl.DateTimeFormat([], { dateStyle: 'medium', timeStyle: 'short' }).format(new Date()), 55, 101, 17, '#8fa39c', 500);
+
+    const floorX = 50; const floorWidth = 1120; const slotGap = 15; const slotWidth = (floorWidth - 55 - slotGap * 3) / 4;
+    for (let row = 0; row < 3; row++) {
+      const bandY = 140 + row * 260;
+      rounded(floorX, bandY, floorWidth, 230, 14, '#10201b', '#29483e');
+      context.fillStyle = '#b9f15d'; context.beginPath(); context.arc(floorX + 25, bandY + 30, 6, 0, Math.PI * 2); context.fill();
+      text(state.chuteNames[row] || 'MU###', floorX + 43, bandY + 37, 20, '#b9f15d', 850);
+      for (let position = 0; position < 4; position++) {
+        const x = floorX + 20 + position * (slotWidth + slotGap);
+        const y = bandY + 60;
+        rounded(x, y, slotWidth, 145, 12, '#0b1714', '#354f46');
+        text(`P${position + 1}`, x + 12, y + 23, 13, '#6f887f', 800);
+        const uld = findUld(state.assignments[`slot-${row * 4 + position + 1}`]);
+        if (uld) drawUld(uld, x + 8, y + 31, slotWidth - 16, 106);
+      }
+    }
+
+    const spareX = 1205; const spareWidth = 345;
+    rounded(spareX, 140, spareWidth, canvas.height - 190, 14, '#10201b', '#29483e');
+    text('SPARE PARKING', spareX + 22, 183, 20, '#b9f15d', 850);
+    text(`${spares.length} ULD${spares.length === 1 ? '' : 'S'}`, spareX + spareWidth - 22, 183, 14, '#8fa39c', 700, 'right');
+    spares.forEach((uld, index) => drawUld(uld, spareX + 18, 210 + index * 112, spareWidth - 36, 100));
+
+    const png = await new Promise((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('PNG creation failed')), 'image/png'));
+    const pngUrl = URL.createObjectURL(png);
+    const link = document.createElement('a');
+    link.href = pngUrl;
+    link.download = `bagroom-layout-${new Date().toISOString().slice(0, 10)}.png`;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(pngUrl), 1000);
+    toast('Floor photo exported');
+  } catch (error) {
+    toast('Could not create floor photo');
+  } finally {
+    button.disabled = false;
+    button.textContent = originalLabel;
+  }
+}
+
 document.querySelectorAll('.nav-button').forEach((button) => button.addEventListener('click', () => {
   document.querySelectorAll('.nav-button,.page').forEach((node) => node.classList.remove('active'));
   button.classList.add('active'); $(`#${button.dataset.page}-page`).classList.add('active');
@@ -264,6 +341,7 @@ $('#reset-uld-details').addEventListener('click', () => {
 
 $('#uld-search').addEventListener('input', renderRoster);
 $('#cancel-move').addEventListener('click', () => { selectedUld = null; renderBoard(); });
+$('#export-photo').addEventListener('click', exportFloorPhoto);
 $('#commodity-options').innerHTML = [...specialCommodities, ...standardCommodities].map((code) => `<option value="${code}"></option>`).join('');
 $('#today').textContent = new Intl.DateTimeFormat([], { weekday: 'short', month: 'short', day: 'numeric' }).format(new Date());
 load().catch(() => { $('#save-status').textContent = 'Connection error'; toast('Could not load tracker data'); });
