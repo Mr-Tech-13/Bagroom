@@ -51,6 +51,7 @@ function render() {
   renderBoard();
   renderRoster();
   document.querySelectorAll('.chute-name-input').forEach((input) => { input.value = state.chuteNames[Number(input.dataset.chuteIndex)] || ''; });
+  $('#requirements-input').value = (state.requirements || []).map((item) => `${item.quantity} ${item.commodity}`).join('\n');
 }
 
 function renderBoard() {
@@ -60,7 +61,7 @@ function renderBoard() {
       return `<div class="dropzone" data-slot="${slot}" data-position="P${position + 1}">${uld ? card(uld) : ''}</div>`;
     }).join('');
     const chuteName = state.chuteNames[row];
-    return `<div class="chute-band"><h3>Chute ${row + 1}${chuteName ? ` · ${escapeHtml(chuteName)}` : ''}</h3><div class="chute-slots">${rowSlots}</div></div>`;
+    return `<div class="chute-band"><h3>${chuteName ? escapeHtml(chuteName) : 'MU###'}</h3><div class="chute-slots">${rowSlots}</div></div>`;
   }).join('');
   const spare = spareUlds();
   $('#spare-drop').innerHTML = spare.length ? spare.map(card).join('') : '<p class="empty-message">Drop spare ULDs here</p>';
@@ -166,6 +167,7 @@ function commitCommodity(input, uld, announce) {
 }
 
 function isCommodity(value) { return /^(B[1-4][A-X]|MXT|BJ|BY|B0X|BTX)$/.test(value); }
+function normalizeUldNumber(value) { const number = value.trim().toUpperCase(); return number.endsWith('EK') ? number : `${number}EK`; }
 function toast(message) { const node = $('#toast'); node.textContent = message; node.classList.add('show'); setTimeout(() => node.classList.remove('show'), 2200); }
 
 document.querySelectorAll('.nav-button').forEach((button) => button.addEventListener('click', () => {
@@ -180,12 +182,16 @@ $('#import-ulds').addEventListener('click', () => {
     const heading = line.match(/^(?:ROW|CHUTE)\s*([1-3])\s*:?$/);
     if (heading) { section = `row-${heading[1]}`; sections[section] ||= []; continue; }
     if (/^SPARES?\s*:?$/.test(line)) { section = 'spare'; continue; }
-    sections[section] ||= []; sections[section].push(line);
+    sections[section] ||= []; sections[section].push(normalizeUldNumber(line));
   }
   const numbers = [...new Set(Object.values(sections).flat())];
   if (!numbers.length) return toast('Paste at least one ULD number');
-  const existing = new Map(state.ulds.map((uld) => [uld.number, uld]));
-  const nextUlds = numbers.map((number) => existing.get(number) || { id: `${number}-${Date.now()}-${Math.random().toString(16).slice(2)}`, number, commodity: '', t2t: false });
+  const existing = new Map(state.ulds.map((uld) => [normalizeUldNumber(uld.number), uld]));
+  const nextUlds = numbers.map((number) => {
+    const current = existing.get(number);
+    if (current) { current.number = number; return current; }
+    return { id: `${number}-${Date.now()}-${Math.random().toString(16).slice(2)}`, number, commodity: '', t2t: false };
+  });
   const validIds = new Set(nextUlds.map((uld) => uld.id));
   slots.forEach((slot) => { if (!validIds.has(state.assignments[slot])) state.assignments[slot] = null; });
   state.ulds = nextUlds;
@@ -225,6 +231,29 @@ $('#reset-ulds').addEventListener('click', () => {
   $('#uld-import').value = '';
   render(); save('Imported ULDs reset');
   $('#import-note').textContent = 'All imported ULDs cleared';
+});
+
+$('#save-requirements').addEventListener('click', () => {
+  const lines = $('#requirements-input').value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const parsed = [];
+  for (const line of lines) {
+    const match = line.match(/^(\d+)\s+([a-zA-Z0-9]+)$/);
+    const commodity = match?.[2].toUpperCase();
+    if (!match || Number(match[1]) < 1 || !isCommodity(commodity)) return toast(`Check requirement: ${line}`);
+    parsed.push({ quantity: Number(match[1]), commodity });
+  }
+  state.requirements = parsed;
+  $('#requirements-input').value = parsed.map((item) => `${item.quantity} ${item.commodity}`).join('\n');
+  save('Commodity requirements saved');
+  $('#requirements-note').textContent = `${parsed.length} requirement lines saved`;
+});
+
+$('#reset-requirements').addEventListener('click', () => {
+  if (!confirm('Clear all imported commodity requirements? ULD commodity assignments will stay in place.')) return;
+  state.requirements = [];
+  $('#requirements-input').value = '';
+  save('Commodity requirements reset');
+  $('#requirements-note').textContent = 'Commodity requirements cleared';
 });
 
 $('#reset-uld-details').addEventListener('click', () => {

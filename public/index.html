@@ -29,7 +29,7 @@
         <div class="move-banner" id="move-banner" aria-live="polite"><span>Tap a ULD, then tap its destination.</span><button id="cancel-move">Cancel</button></div>
         <div class="board-layout">
           <section class="panel board-panel">
-            <div class="panel-heading"><div><p class="eyebrow">ACTIVE FLOOR</p><h2>Chute grid</h2></div><span class="hint"><span class="desktop-hint">Drag</span><span class="mobile-hint">Tap</span> to reassign</span></div>
+            <div class="panel-heading"><div><h2>Bagroom Layout</h2></div></div>
             <div class="grid" id="assignment-grid"></div>
           </section>
           <aside class="panel spare-panel">
@@ -51,12 +51,18 @@
           </div>
           <div class="actions"><button class="button primary" id="save-chutes">Save chute names</button><button class="button reset" id="reset-chutes">Reset chute names</button><span id="chute-note" class="form-note"></span></div>
         </section>
-        <div class="setup-grid single-card">
+        <div class="setup-grid">
           <section class="panel setup-card">
             <div class="step">01</div><h2>Import ULD numbers</h2>
-            <p class="muted">Paste one ULD per line. Add Row 1, Row 2, Row 3, and Spare headings to place them immediately; a plain list starts in spare.</p>
+            <p class="muted">Paste one ULD per line. EK is added automatically. Add Row 1, Row 2, Row 3, and Spare headings to place them immediately; a plain list starts in spare.</p>
             <textarea id="uld-import" rows="10" placeholder="Row 1&#10;QKE70516&#10;AKE92264&#10;AKE47803&#10;&#10;Row 2&#10;QKE66306&#10;AKE62338&#10;&#10;Spare&#10;QKE70473"></textarea>
             <div class="actions"><button class="button primary" id="import-ulds">Import numbers</button><button class="button reset" id="reset-ulds">Reset imported ULDs</button><span id="import-note" class="form-note"></span></div>
+          </section>
+          <section class="panel setup-card">
+            <div class="step">02</div><h2>Import commodity requirements</h2>
+            <p class="muted">Add each required commodity on a new line: quantity followed by code, such as “3 B2X”. These requirements stay on Setup.</p>
+            <textarea id="requirements-input" rows="10" placeholder="1 BJ&#10;2 BY&#10;3 B2X"></textarea>
+            <div class="actions"><button class="button primary" id="save-requirements">Save requirements</button><button class="button reset" id="reset-requirements">Reset requirements</button><span id="requirements-note" class="form-note"></span></div>
           </section>
         </div>
         <section class="panel roster-panel">
