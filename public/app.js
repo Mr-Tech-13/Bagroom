@@ -299,14 +299,12 @@ $('#save-chutes').addEventListener('click', () => {
 });
 
 $('#reset-chutes').addEventListener('click', () => {
-  if (!confirm('Reset all three chute names? ULD assignments will stay in place.')) return;
   state.chuteNames = ['', '', ''];
   render(); save('Chute names reset');
   $('#chute-note').textContent = 'Chute names cleared';
 });
 
 $('#reset-ulds').addEventListener('click', () => {
-  if (!confirm('Remove every imported ULD and clear all chute assignments?')) return;
   state.ulds = [];
   slots.forEach((slot) => { state.assignments[slot] = null; });
   selectedUld = null;
@@ -331,7 +329,6 @@ $('#save-requirements').addEventListener('click', () => {
 });
 
 $('#reset-requirements').addEventListener('click', () => {
-  if (!confirm('Clear all imported commodity requirements? ULD commodity assignments will stay in place.')) return;
   state.requirements = [];
   $('#requirements-input').value = '';
   save('Commodity requirements reset');
@@ -339,7 +336,6 @@ $('#reset-requirements').addEventListener('click', () => {
 });
 
 $('#reset-uld-details').addEventListener('click', () => {
-  if (!confirm('Clear every ULD commodity and T2T flag? Container numbers and positions will stay in place.')) return;
   state.ulds.forEach((uld) => { uld.commodity = ''; uld.t2t = false; });
   render(); save('ULD details reset');
 });
@@ -347,18 +343,30 @@ $('#reset-uld-details').addEventListener('click', () => {
 $('#uld-search').addEventListener('input', renderRoster);
 $('#cancel-move').addEventListener('click', () => { selectedUld = null; renderBoard(); });
 $('#export-photo').addEventListener('click', exportFloorPhoto);
-const closeExport = () => $('#export-dialog').close();
-$('#close-export').addEventListener('click', closeExport);
-$('#cancel-export').addEventListener('click', closeExport);
-$('#export-dialog').addEventListener('click', (event) => { if (event.target === $('#export-dialog')) closeExport(); });
-$('#export-dialog').addEventListener('close', () => {
+
+function cleanupExportPreview() {
   if (exportPngUrl) URL.revokeObjectURL(exportPngUrl);
   exportPngUrl = null;
   exportPngBlob = null;
   $('#export-preview').removeAttribute('src');
   $('#save-export').removeAttribute('href');
   $('#share-export').hidden = true;
-});
+}
+
+function closeExport() {
+  const dialog = $('#export-dialog');
+  if (typeof dialog.close === 'function' && dialog.open) {
+    dialog.close();
+  } else {
+    dialog.removeAttribute('open');
+    cleanupExportPreview();
+  }
+}
+
+$('#close-export').addEventListener('click', closeExport);
+$('#cancel-export').addEventListener('click', closeExport);
+$('#export-dialog').addEventListener('click', (event) => { if (event.target === $('#export-dialog')) closeExport(); });
+$('#export-dialog').addEventListener('close', cleanupExportPreview);
 $('#share-export').addEventListener('click', async () => {
   if (!exportPngBlob) return toast('Create the floor photo again');
   const filename = `bagroom-layout-${new Date().toISOString().slice(0, 10)}.png`;
