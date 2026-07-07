@@ -44,16 +44,18 @@ function formatTime(value) { return new Intl.DateTimeFormat([], { hour: 'numeric
 function assignedIds() { return new Set(Object.values(state.assignments).filter(Boolean)); }
 function spareUlds() { const assigned = assignedIds(); return state.ulds.filter((uld) => !assigned.has(uld.id)); }
 function findUld(id) { return state.ulds.find((uld) => uld.id === id); }
+function canBeT2T(uld) { return /^QKE/.test(uld.number || ''); }
+function isT2T(uld) { return Boolean(uld.t2t && canBeT2T(uld)); }
 
 function card(uld) {
-  return `<div class="uld-card ${selectedUld === uld.id ? 'selected' : ''}" draggable="true" tabindex="0" role="button" aria-label="Move ${escapeHtml(uld.number)}, commodity ${escapeHtml(uld.commodity || 'unassigned')}" data-uld-id="${escapeHtml(uld.id)}">${uld.t2t ? '<span class="t2t">T2T</span>' : ''}<strong>${escapeHtml(uld.number)}</strong><span class="commodity ${uld.commodity ? '' : 'unset'}"><small>Commodity</small>${escapeHtml(uld.commodity || 'UNASSIGNED')}</span></div>`;
+  return `<div class="uld-card ${selectedUld === uld.id ? 'selected' : ''}" draggable="true" tabindex="0" role="button" aria-label="Move ${escapeHtml(uld.number)}, commodity ${escapeHtml(uld.commodity || 'unassigned')}" data-uld-id="${escapeHtml(uld.id)}">${isT2T(uld) ? '<span class="t2t">T2T</span>' : ''}<strong>${escapeHtml(uld.number)}</strong><span class="commodity ${uld.commodity ? '' : 'unset'}"><small>Commodity</small>${escapeHtml(uld.commodity || 'UNASSIGNED')}</span></div>`;
 }
 
 function render() {
   renderBoard();
   renderRoster();
   document.querySelectorAll('.chute-name-input').forEach((input) => { input.value = state.chuteNames[Number(input.dataset.chuteIndex)] || ''; });
-  $('#requirements-input').value = (state.requirements || []).map((item) => `${item.quantity} ${item.commodity}`).join('\n');
+  $('#requirements-input').value = (state.requirements || []).map((item) => `${item.quantity} ${item.commodity}${item.t2t ? ' T2T' : ''}`).join('\n');
 }
 
 function renderBoard() {
@@ -73,7 +75,7 @@ function renderBoard() {
   const floorCount = assignedIds().size;
   const commodityCount = state.ulds.filter((uld) => uld.commodity).length;
   $('#summary').innerHTML = [
-    ['Floor positions', `${floorCount}/12`], ['Spare ULDs', spare.length], ['Commodity set', `${commodityCount}/${state.ulds.length}`], ['T2T marked', state.ulds.filter((uld) => uld.t2t).length]
+    ['Floor positions', `${floorCount}/12`], ['Spare ULDs', spare.length], ['Commodity set', `${commodityCount}/${state.ulds.length}`], ['T2T marked', state.ulds.filter(isT2T).length]
   ].map(([label, value]) => `<div class="metric"><span>${label}</span><strong>${value}</strong></div>`).join('');
   bindDragEvents();
 }
@@ -126,7 +128,7 @@ function positionFor(id) {
 function renderRoster() {
   const query = ($('#uld-search')?.value || '').toUpperCase();
   const visible = state.ulds.filter((uld) => uld.number.includes(query));
-  $('#uld-table').innerHTML = visible.length ? visible.map((uld) => `<tr data-id="${escapeHtml(uld.id)}"><td>${escapeHtml(uld.number)}</td><td><input class="commodity-input" list="commodity-options" value="${escapeHtml(uld.commodity || '')}" placeholder="Select code" maxlength="4"></td><td><label class="switch"><input class="t2t-input" type="checkbox" ${uld.t2t ? 'checked' : ''}><span class="slider"></span></label></td><td>${positionFor(uld.id)}</td></tr>`).join('') : '<tr><td colspan="4" class="empty-message">No ULDs found. Import numbers above to begin.</td></tr>';
+  $('#uld-table').innerHTML = visible.length ? visible.map((uld) => `<tr data-id="${escapeHtml(uld.id)}"><td>${escapeHtml(uld.number)}</td><td><input class="commodity-input" list="commodity-options" value="${escapeHtml(uld.commodity || '')}" placeholder="Select code" maxlength="4"></td><td><label class="switch ${canBeT2T(uld) ? '' : 'disabled'}" title="${canBeT2T(uld) ? 'Mark as T2T' : 'Only QKE containers can be T2T'}"><input class="t2t-input" type="checkbox" ${isT2T(uld) ? 'checked' : ''} ${canBeT2T(uld) ? '' : 'disabled'}><span class="slider"></span></label></td><td>${positionFor(uld.id)}</td></tr>`).join('') : '<tr><td colspan="4" class="empty-message">No ULDs found. Import numbers above to begin.</td></tr>';
   bindRosterEvents();
 }
 
@@ -147,7 +149,11 @@ function bindRosterEvents() {
         commodityInput.blur();
       }
     });
-    row.querySelector('.t2t-input').addEventListener('change', (event) => { uld.t2t = event.target.checked; renderBoard(); save('T2T status updated'); });
+    row.querySelector('.t2t-input').addEventListener('change', (event) => {
+      uld.t2t = canBeT2T(uld) && event.target.checked;
+      renderBoard();
+      save('T2T status updated');
+    });
   });
 }
 
@@ -171,6 +177,216 @@ function commitCommodity(input, uld, announce) {
 function isCommodity(value) { return /^(B[1-4][A-X]|MXT|BJ|BY|B0X|BTX)$/.test(value); }
 function normalizeUldNumber(value) { const number = value.trim().toUpperCase(); return number.endsWith('EK') ? number : `${number}EK`; }
 function toast(message) { const node = $('#toast'); node.textContent = message; node.classList.add('show'); setTimeout(() => node.classList.remove('show'), 2200); }
+
+function parseRequirements() {
+  const lines = $('#requirements-input').value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const parsed = [];
+  for (const line of lines) {
+    const match = line.match(/^(?:(\d+)\s+)?([a-zA-Z0-9]+)(?:\s+(T2T))?$/i);
+    const quantity = Number(match?.[1] || 1);
+    const commodity = match?.[2].toUpperCase();
+    if (!match || quantity < 1 || !isCommodity(commodity)) {
+      toast(`Check requirement: ${line}`);
+      return null;
+    }
+    parsed.push({ quantity, commodity, t2t: Boolean(match[3]) });
+  }
+  return parsed;
+}
+
+function commodityWindowRank(commodity) {
+  const match = commodity.match(/^B([1-4])([A-X])$/);
+  if (!match) return 0;
+  return Number(match[1]) * 100 + (match[2].charCodeAt(0) - 64);
+}
+
+function isHighTransferCommodity(commodity) {
+  return commodityWindowRank(commodity) >= commodityWindowRank('B3A');
+}
+
+function autoAssignFromRequirements() {
+  const requirements = parseRequirements();
+  if (!requirements) return;
+  if (!requirements.length) return toast('Add commodity requirements first');
+
+  state.requirements = requirements;
+  $('#requirements-input').value = requirements.map((item) => `${item.quantity} ${item.commodity}${item.t2t ? ' T2T' : ''}`).join('\n');
+
+  const availableByCommodity = new Map();
+  state.ulds
+    .filter((uld) => uld.commodity)
+    .sort((a, b) => Number(isT2T(b)) - Number(isT2T(a)) || a.number.localeCompare(b.number))
+    .forEach((uld) => {
+      const list = availableByCommodity.get(uld.commodity) || [];
+      list.push(uld);
+      availableByCommodity.set(uld.commodity, list);
+    });
+
+  const blankUlds = state.ulds
+    .filter((uld) => !uld.commodity)
+    .sort((a, b) => Number(canBeT2T(a)) - Number(canBeT2T(b)) || a.number.localeCompare(b.number));
+  const requirementTasks = requirements.flatMap((item) =>
+    Array.from({ length: item.quantity }, () => ({ commodity: item.commodity, t2t: item.t2t }))
+  );
+
+  const nextAssignments = Object.fromEntries(slots.map((slot) => [slot, null]));
+  const used = new Set();
+  const slotIndexes = { bjSecond: 0, by: 0, row2: 0, row3: 0 };
+  const slotPools = {
+    bjFirst: ['slot-1'],
+    bjSecond: ['slot-2', 'slot-3', 'slot-4'],
+    by: ['slot-2', 'slot-3', 'slot-4'],
+    row2: ['slot-5', 'slot-6', 'slot-7', 'slot-8'],
+    row3: ['slot-9', 'slot-10', 'slot-11', 'slot-12']
+  };
+  const missing = [];
+  const overflow = [];
+
+  const takeUld = (task) => {
+    const { commodity, t2t } = task;
+    const list = availableByCommodity.get(commodity) || [];
+    for (let index = 0; index < list.length; index += 1) {
+      const uld = list[index];
+      if (!used.has(uld.id) && (!t2t || isT2T(uld))) {
+        used.add(uld.id);
+        list.splice(index, 1);
+        return uld;
+      }
+    }
+    const blankIndex = blankUlds.findIndex((uld) => !used.has(uld.id) && (!t2t || canBeT2T(uld)));
+    if (blankIndex >= 0) {
+      const [uld] = blankUlds.splice(blankIndex, 1);
+      used.add(uld.id);
+      uld.commodity = commodity;
+      uld.t2t = t2t && canBeT2T(uld);
+      return uld;
+    }
+    return null;
+  };
+
+  const placeInFirstOpen = (uld, preferredSlots) => {
+    const slot = preferredSlots.find((candidate) => !nextAssignments[candidate]);
+    if (!slot) return false;
+    nextAssignments[slot] = uld.id;
+    return true;
+  };
+
+  const placeInPool = (uld, poolName) => {
+    const pool = slotPools[poolName];
+    while (slotIndexes[poolName] < pool.length) {
+      const slot = pool[slotIndexes[poolName]];
+      slotIndexes[poolName] += 1;
+      if (!nextAssignments[slot]) {
+        nextAssignments[slot] = uld.id;
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const placeTasks = (tasks, preferredPool) => {
+    tasks.forEach((task) => {
+      const uld = takeUld(task);
+      if (!uld) { missing.push(`${task.commodity}${task.t2t ? ' T2T' : ''}`); return; }
+      if (!placeInPool(uld, preferredPool)) overflow.push(uld);
+    });
+  };
+
+  const bjTasks = requirementTasks.filter((task) => task.commodity === 'BJ');
+  for (let index = 0; index < bjTasks.length; index += 1) {
+    const uld = takeUld(bjTasks[index]);
+    if (!uld) { missing.push('BJ'); continue; }
+    const placed = index === 0
+      ? placeInFirstOpen(uld, slotPools.bjFirst)
+      : placeInPool(uld, 'bjSecond');
+    if (!placed) overflow.push(uld);
+  }
+
+  placeTasks(requirementTasks.filter((task) => task.commodity === 'BY'), 'by');
+
+  const otherRequirements = requirementTasks
+    .filter((task) => task.commodity !== 'BJ' && task.commodity !== 'BY')
+    .sort((a, b) => commodityWindowRank(a.commodity) - commodityWindowRank(b.commodity));
+
+  const otherUlds = [];
+  otherRequirements.forEach((task) => {
+    const uld = takeUld(task);
+    if (!uld) missing.push(`${task.commodity}${task.t2t ? ' T2T' : ''}`);
+    else otherUlds.push(uld);
+  });
+  const rowSlots = { row2: slotPools.row2, row3: slotPools.row3 };
+  const openIndexes = (rowName) => rowSlots[rowName].map((slot, index) => nextAssignments[slot] ? null : index).filter((index) => index !== null);
+  const placeAtIndex = (rowName, index, group) => {
+    const uld = group.ulds.shift();
+    if (!uld) return false;
+    nextAssignments[rowSlots[rowName][index]] = uld.id;
+    return true;
+  };
+  const placeGroupFromStart = (rowName, group) => {
+    for (const index of openIndexes(rowName)) {
+      if (!placeAtIndex(rowName, index, group)) break;
+    }
+  };
+  const placeOneFromEnd = (rowName, group) => {
+    const indexes = openIndexes(rowName);
+    if (!indexes.length || !group.ulds.length) return false;
+    return placeAtIndex(rowName, indexes[indexes.length - 1], group);
+  };
+
+  const priorityT2TGroups = [...otherUlds.filter(isT2T).reduce((map, uld) => {
+    const group = map.get(uld.commodity) || { commodity: uld.commodity, ulds: [], prefersRow3: true };
+    group.ulds.push(uld);
+    map.set(uld.commodity, group);
+    return map;
+  }, new Map()).values()].sort((a, b) => b.ulds.length - a.ulds.length || commodityWindowRank(b.commodity) - commodityWindowRank(a.commodity));
+  priorityT2TGroups.forEach((group, index) => {
+    const rows = index === 0 ? ['row2', 'row3'] : ['row3', 'row2'];
+    placeGroupFromStart(rows[0], group);
+    while (group.ulds.length && (openIndexes('row2').length || openIndexes('row3').length)) {
+      if (!placeOneFromEnd(rows[0], group) && !placeOneFromEnd(rows[1], group)) break;
+    }
+    overflow.push(...group.ulds);
+    group.ulds = [];
+  });
+
+  const groupedUlds = [...otherUlds.filter((uld) => !isT2T(uld)).reduce((map, uld) => {
+    const group = map.get(uld.commodity) || { commodity: uld.commodity, ulds: [], prefersRow3: false };
+    group.ulds.push(uld);
+    group.prefersRow3 ||= isHighTransferCommodity(uld.commodity);
+    map.set(uld.commodity, group);
+    return map;
+  }, new Map()).values()].sort((a, b) => b.ulds.length - a.ulds.length || commodityWindowRank(b.commodity) - commodityWindowRank(a.commodity));
+
+  const highGroups = groupedUlds.filter((group) => group.prefersRow3);
+  const standardGroups = groupedUlds.filter((group) => !group.prefersRow3);
+  if (highGroups[0]) placeGroupFromStart('row3', highGroups[0]);
+  if (standardGroups[0]) placeGroupFromStart('row2', standardGroups[0]);
+
+  groupedUlds
+    .filter((group) => group.ulds.length)
+    .sort((a, b) => a.ulds.length - b.ulds.length || commodityWindowRank(a.commodity) - commodityWindowRank(b.commodity))
+    .forEach((group) => {
+      const rows = group.prefersRow3 ? ['row3', 'row2'] : ['row2', 'row3'];
+      while (group.ulds.length && (openIndexes('row2').length || openIndexes('row3').length)) {
+        if (!placeOneFromEnd(rows[0], group) && !placeOneFromEnd(rows[1], group)) break;
+      }
+      overflow.push(...group.ulds);
+      group.ulds = [];
+    });
+
+  state.assignments = nextAssignments;
+  selectedUld = null;
+  render();
+  save('Auto assignment applied');
+
+  const placedCount = assignedIds().size;
+  const preparedCount = used.size;
+  const requiredCount = requirementTasks.length;
+  const missingText = missing.length ? ` Missing ${missing.length}: ${missing.join(', ')}.` : '';
+  const spareRequired = overflow.map((uld) => `${uld.commodity}${isT2T(uld) ? ' T2T' : ''}`);
+  const spareText = spareRequired.length ? ` Spare required ${spareRequired.length}: ${spareRequired.join(', ')}.` : '';
+  $('#requirements-note').textContent = `Auto assigned ${placedCount} to floor; prepared ${preparedCount}/${requiredCount} required ULDs.${missingText}${spareText}`;
+}
 
 async function exportFloorPhoto() {
   const button = $('#export-photo');
@@ -199,7 +415,7 @@ async function exportFloorPhoto() {
       const badgeWidth = Math.max(118, context.measureText(commodity).width + 52);
       rounded(x + (width - badgeWidth) / 2, y + 65, badgeWidth, 38, 19, uld.commodity ? '#b9f15d' : '#2d5548');
       text(`COMMODITY  ${commodity}`, x + width / 2, y + 90, 13, uld.commodity ? '#10231d' : '#d1e0da', 900, 'center');
-      if (uld.t2t) { rounded(x + width - 57, y + 10, 45, 27, 6, '#ff9d55'); text('T2T', x + width - 34, y + 29, 12, '#251308', 900, 'center'); }
+      if (isT2T(uld)) { rounded(x + width - 57, y + 10, 45, 27, 6, '#ff9d55'); text('T2T', x + width - 34, y + 29, 12, '#251308', 900, 'center'); }
     };
 
     context.fillStyle = '#08110f'; context.fillRect(0, 0, canvas.width, canvas.height);
@@ -271,7 +487,11 @@ $('#import-ulds').addEventListener('click', () => {
   const existing = new Map(state.ulds.map((uld) => [normalizeUldNumber(uld.number), uld]));
   const nextUlds = numbers.map((number) => {
     const current = existing.get(number);
-    if (current) { current.number = number; return current; }
+    if (current) {
+      current.number = number;
+      current.t2t = canBeT2T(current) && current.t2t;
+      return current;
+    }
     return { id: `${number}-${Date.now()}-${Math.random().toString(16).slice(2)}`, number, commodity: '', t2t: false };
   });
   const validIds = new Set(nextUlds.map((uld) => uld.id));
@@ -314,16 +534,10 @@ $('#reset-ulds').addEventListener('click', () => {
 });
 
 $('#save-requirements').addEventListener('click', () => {
-  const lines = $('#requirements-input').value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-  const parsed = [];
-  for (const line of lines) {
-    const match = line.match(/^(\d+)\s+([a-zA-Z0-9]+)$/);
-    const commodity = match?.[2].toUpperCase();
-    if (!match || Number(match[1]) < 1 || !isCommodity(commodity)) return toast(`Check requirement: ${line}`);
-    parsed.push({ quantity: Number(match[1]), commodity });
-  }
+  const parsed = parseRequirements();
+  if (!parsed) return;
   state.requirements = parsed;
-  $('#requirements-input').value = parsed.map((item) => `${item.quantity} ${item.commodity}`).join('\n');
+  $('#requirements-input').value = parsed.map((item) => `${item.quantity} ${item.commodity}${item.t2t ? ' T2T' : ''}`).join('\n');
   save('Commodity requirements saved');
   $('#requirements-note').textContent = `${parsed.length} requirement lines saved`;
 });
@@ -334,6 +548,8 @@ $('#reset-requirements').addEventListener('click', () => {
   save('Commodity requirements reset');
   $('#requirements-note').textContent = 'Commodity requirements cleared';
 });
+
+$('#auto-assign').addEventListener('click', autoAssignFromRequirements);
 
 $('#reset-uld-details').addEventListener('click', () => {
   state.ulds.forEach((uld) => { uld.commodity = ''; uld.t2t = false; });

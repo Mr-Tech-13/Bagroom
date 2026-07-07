@@ -60,9 +60,9 @@
           </section>
           <section class="panel setup-card">
             <div class="step">02</div><h2>Import commodity requirements</h2>
-            <p class="muted">Add each required commodity on a new line: quantity followed by code, such as “3 B2X”. These requirements stay on Setup.</p>
-            <textarea id="requirements-input" rows="10" placeholder="1 BJ&#10;2 BY&#10;3 B2X"></textarea>
-            <div class="actions"><button class="button primary" id="save-requirements">Save requirements</button><button class="button reset" id="reset-requirements">Reset requirements</button><span id="requirements-note" class="form-note"></span></div>
+            <p class="muted">Add each required commodity on a new line, such as “3 B2X”. Use “B1A T2T” or “1 B1A T2T” to require a QKE transfer container.</p>
+            <textarea id="requirements-input" rows="10" placeholder="1 BJ&#10;2 BY&#10;3 B2X&#10;B1A T2T"></textarea>
+            <div class="actions"><button class="button primary" id="save-requirements">Save requirements</button><button class="button" id="auto-assign" type="button">Auto assign</button><button class="button reset" id="reset-requirements">Reset requirements</button><span id="requirements-note" class="form-note"></span></div>
           </section>
         </div>
         <section class="panel roster-panel">
