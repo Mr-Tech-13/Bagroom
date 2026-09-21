@@ -70,8 +70,20 @@
           <datalist id="commodity-options"></datalist>
           <div class="table-wrap"><table><thead><tr><th>ULD number</th><th>Commodity</th><th>T2T</th><th>Current position</th></tr></thead><tbody id="uld-table"></tbody></table></div>
         </section>
+        <section class="panel issues-panel">
+          <div class="panel-heading"><div><p class="eyebrow">ISSUE LOG</p><h2>Open issues</h2><p class="muted">Track bagroom problems reported from the floor.</p></div><span class="count" id="open-issue-count">0</span></div>
+          <div class="issue-list" id="issue-list"></div>
+        </section>
       </section>
     </main>
+    <button class="report-issue-button" id="report-issue" type="button">Report issue</button>
+    <dialog class="issue-dialog" id="issue-dialog">
+      <form method="dialog">
+        <div class="export-dialog-heading"><div><p class="eyebrow">FLOOR REPORT</p><h2>Report an issue</h2></div><button class="dialog-close" id="close-issue" type="button" aria-label="Close issue report">×</button></div>
+        <label class="issue-field"><span>What happened?</span><textarea id="issue-text" rows="6" maxlength="1000" placeholder="Describe the issue so it can be followed up in Setup."></textarea></label>
+        <div class="export-dialog-actions"><button class="button" id="cancel-issue" type="button">Cancel</button><button class="button primary" id="submit-issue" type="button">Submit issue</button></div>
+      </form>
+    </dialog>
     <dialog class="export-dialog" id="export-dialog">
       <div class="export-dialog-heading"><div><p class="eyebrow">PNG PREVIEW</p><h2 id="export-title">Export ready</h2></div><button class="dialog-close" id="close-export" type="button" aria-label="Close export preview">×</button></div>
       <img id="export-preview" alt="Exported Bagroom preview" />

@@ -3,7 +3,7 @@ const standardCommodities = Array.from({ length: 4 }, (_, group) =>
   Array.from({ length: 24 }, (_, letter) => `B${group + 1}${String.fromCharCode(65 + letter)}`)
 ).flat();
 const specialCommodities = ['MXT', 'BJ', 'BY', 'B0X', 'BTX'];
-let state = { ulds: [], requirements: [], chuteNames: ['', '', ''], assignments: {}, updatedAt: null };
+let state = { ulds: [], requirements: [], issues: [], chuteNames: ['', '', ''], assignments: {}, updatedAt: null };
 let draggedUld = null;
 let selectedUld = null;
 let saveTimer;
@@ -18,6 +18,7 @@ const escapeHtml = (value) => String(value).replace(/[&<>'"]/g, (character) => (
 async function load() {
   const response = await fetch('/api/state');
   state = await response.json();
+  state.issues ||= [];
   state.chuteNames = Array.from({ length: 3 }, (_, index) => state.chuteNames?.[index] || '');
   slots.forEach((slot) => { if (!(slot in state.assignments)) state.assignments[slot] = null; });
   render();
@@ -56,6 +57,7 @@ function card(uld) {
 function render() {
   renderBoard();
   renderRoster();
+  renderIssues();
   document.querySelectorAll('.chute-name-input').forEach((input) => { input.value = state.chuteNames[Number(input.dataset.chuteIndex)] || ''; });
   $('#requirements-input').value = (state.requirements || []).map((item) => `${item.quantity} ${item.commodity}${item.t2t ? ' T2T' : ''}`).join('\n');
 }
@@ -155,6 +157,32 @@ function bindRosterEvents() {
       uld.t2t = canBeT2T(uld) && event.target.checked;
       renderBoard();
       save('T2T status updated');
+    });
+  });
+}
+
+function renderIssues() {
+  const issues = state.issues || [];
+  const openIssues = issues.filter((issue) => issue.status !== 'closed');
+  const closedIssues = issues.filter((issue) => issue.status === 'closed').slice(-5).reverse();
+  $('#open-issue-count').textContent = openIssues.length;
+  const issueCard = (issue) => {
+    const created = issue.createdAt ? formatTime(issue.createdAt) : 'Unknown time';
+    const closed = issue.closedAt ? ` · closed ${formatTime(issue.closedAt)}` : '';
+    return `<article class="issue-card ${issue.status === 'closed' ? 'closed' : ''}" data-issue-id="${escapeHtml(issue.id)}"><p>${escapeHtml(issue.text)}</p><div class="issue-meta"><span>Reported ${escapeHtml(created)}${escapeHtml(closed)}</span>${issue.status === 'closed' ? '<span>Closed</span>' : '<button class="button compact close-issue-button" type="button">Close issue</button>'}</div></article>`;
+  };
+  $('#issue-list').innerHTML = [
+    ...openIssues.map(issueCard),
+    ...(closedIssues.length ? ['<p class="muted">Recently closed</p>', ...closedIssues.map(issueCard)] : [])
+  ].join('') || '<p class="empty-message">No open issues.</p>';
+  document.querySelectorAll('.close-issue-button').forEach((button) => {
+    button.addEventListener('click', () => {
+      const issue = issues.find((item) => item.id === button.closest('.issue-card')?.dataset.issueId);
+      if (!issue) return;
+      issue.status = 'closed';
+      issue.closedAt = new Date().toISOString();
+      renderIssues();
+      save('Issue closed');
     });
   });
 }
@@ -276,11 +304,12 @@ function autoAssignFromRequirements() {
 
   const nextAssignments = Object.fromEntries(slots.map((slot) => [slot, null]));
   const used = new Set();
-  const slotIndexes = { bjSecond: 0, by: 0, row2: 0, row3: 0 };
+  const slotIndexes = { bjSecond: 0, by: 0, row1: 0, row2: 0, row3: 0 };
   const slotPools = {
-    bjFirst: ['slot-1'],
-    bjSecond: ['slot-2', 'slot-3', 'slot-4'],
-    by: ['slot-2', 'slot-3', 'slot-4'],
+    bjFirst: ['slot-9'],
+    bjSecond: ['slot-10', 'slot-11', 'slot-12'],
+    by: ['slot-10', 'slot-11', 'slot-12'],
+    row1: ['slot-1', 'slot-2', 'slot-3', 'slot-4'],
     row2: ['slot-5', 'slot-6', 'slot-7', 'slot-8'],
     row3: ['slot-9', 'slot-10', 'slot-11', 'slot-12']
   };
@@ -359,8 +388,9 @@ function autoAssignFromRequirements() {
     if (!uld) missing.push(`${task.commodity}${task.t2t ? ' T2T' : ''}`);
     else otherUlds.push(uld);
   });
-  const rowSlots = { row2: slotPools.row2, row3: slotPools.row3 };
+  const rowSlots = { row1: slotPools.row1, row2: slotPools.row2, row3: slotPools.row3 };
   const openIndexes = (rowName) => rowSlots[rowName].map((slot, index) => nextAssignments[slot] ? null : index).filter((index) => index !== null);
+  const hasOpenFloorSpace = () => ['row1', 'row2', 'row3'].some((rowName) => openIndexes(rowName).length);
   const placeAtIndex = (rowName, index, group) => {
     const uld = group.ulds.shift();
     if (!uld) return false;
@@ -385,10 +415,10 @@ function autoAssignFromRequirements() {
     return map;
   }, new Map()).values()].sort((a, b) => b.ulds.length - a.ulds.length || commodityWindowRank(b.commodity) - commodityWindowRank(a.commodity));
   priorityT2TGroups.forEach((group, index) => {
-    const rows = index === 0 ? ['row2', 'row3'] : ['row3', 'row2'];
+    const rows = index === 0 ? ['row2', 'row3', 'row1'] : ['row3', 'row2', 'row1'];
     placeGroupFromStart(rows[0], group);
-    while (group.ulds.length && (openIndexes('row2').length || openIndexes('row3').length)) {
-      if (!placeOneFromEnd(rows[0], group) && !placeOneFromEnd(rows[1], group)) break;
+    while (group.ulds.length && hasOpenFloorSpace()) {
+      if (!rows.some((rowName) => placeOneFromEnd(rowName, group))) break;
     }
     overflow.push(...group.ulds);
     group.ulds = [];
@@ -405,15 +435,18 @@ function autoAssignFromRequirements() {
   const highGroups = groupedUlds.filter((group) => group.prefersRow3);
   const standardGroups = groupedUlds.filter((group) => !group.prefersRow3);
   if (highGroups[0]) placeGroupFromStart('row3', highGroups[0]);
-  if (standardGroups[0]) placeGroupFromStart('row2', standardGroups[0]);
+  if (standardGroups[0]) {
+    placeGroupFromStart('row2', standardGroups[0]);
+    if (standardGroups[0].ulds.length) placeGroupFromStart('row1', standardGroups[0]);
+  }
 
   groupedUlds
     .filter((group) => group.ulds.length)
     .sort((a, b) => a.ulds.length - b.ulds.length || commodityWindowRank(a.commodity) - commodityWindowRank(b.commodity))
     .forEach((group) => {
-      const rows = group.prefersRow3 ? ['row3', 'row2'] : ['row2', 'row3'];
-      while (group.ulds.length && (openIndexes('row2').length || openIndexes('row3').length)) {
-        if (!placeOneFromEnd(rows[0], group) && !placeOneFromEnd(rows[1], group)) break;
+      const rows = group.prefersRow3 ? ['row3', 'row2', 'row1'] : ['row2', 'row1', 'row3'];
+      while (group.ulds.length && hasOpenFloorSpace()) {
+        if (!rows.some((rowName) => placeOneFromEnd(rowName, group))) break;
       }
       overflow.push(...group.ulds);
       group.ulds = [];
@@ -678,6 +711,37 @@ $('#uld-search').addEventListener('input', renderRoster);
 $('#cancel-move').addEventListener('click', () => { selectedUld = null; renderBoard(); });
 $('#export-barcodes').addEventListener('click', exportBarcodeSheet);
 $('#export-photo').addEventListener('click', exportFloorPhoto);
+$('#report-issue').addEventListener('click', () => {
+  $('#issue-text').value = '';
+  const dialog = $('#issue-dialog');
+  if (typeof dialog.showModal === 'function') dialog.showModal(); else dialog.setAttribute('open', '');
+  $('#issue-text').focus();
+});
+
+function closeIssueDialog() {
+  const dialog = $('#issue-dialog');
+  if (typeof dialog.close === 'function' && dialog.open) dialog.close();
+  else dialog.removeAttribute('open');
+}
+
+$('#close-issue').addEventListener('click', closeIssueDialog);
+$('#cancel-issue').addEventListener('click', closeIssueDialog);
+$('#issue-dialog').addEventListener('click', (event) => { if (event.target === $('#issue-dialog')) closeIssueDialog(); });
+$('#submit-issue').addEventListener('click', () => {
+  const text = $('#issue-text').value.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 1000);
+  if (!text) return toast('Describe the issue first');
+  state.issues ||= [];
+  state.issues.push({
+    id: `issue-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    text,
+    status: 'open',
+    createdAt: new Date().toISOString(),
+    closedAt: null
+  });
+  closeIssueDialog();
+  renderIssues();
+  save('Issue reported');
+});
 
 function cleanupExportPreview() {
   if (exportPngUrl) URL.revokeObjectURL(exportPngUrl);

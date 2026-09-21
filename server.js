@@ -11,6 +11,7 @@ const allowedSlots = Array.from({ length: 12 }, (_, i) => `slot-${i + 1}`);
 const emptyState = () => ({
   ulds: [],
   requirements: [],
+  issues: [],
   chuteNames: ['', '', ''],
   assignments: Object.fromEntries(allowedSlots.map((key) => [key, null])),
   updatedAt: null
@@ -25,6 +26,10 @@ const securityHeaders = {
 
 function cleanText(value, maxLength = 64) {
   return String(value || '').replace(/[^\w .:-]/g, '').slice(0, maxLength);
+}
+
+function cleanLongText(value, maxLength = 1000) {
+  return String(value || '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, maxLength);
 }
 
 function cleanCommodity(value) {
@@ -55,10 +60,21 @@ function normalizeState(value = {}) {
     commodity: cleanCommodity(item?.commodity),
     t2t: Boolean(item?.t2t)
   })).filter((item) => item.quantity > 0 && item.commodity);
+  const issues = (Array.isArray(value.issues) ? value.issues : []).slice(0, 500).map((issue) => {
+    const status = issue?.status === 'closed' ? 'closed' : 'open';
+    return {
+      id: cleanText(issue?.id, 80) || `issue-${Date.now()}`,
+      text: cleanLongText(issue?.text, 1000),
+      status,
+      createdAt: typeof issue?.createdAt === 'string' ? issue.createdAt : new Date().toISOString(),
+      closedAt: status === 'closed' && typeof issue?.closedAt === 'string' ? issue.closedAt : null
+    };
+  }).filter((issue) => issue.text);
   return {
     ...defaults,
     ulds,
     requirements,
+    issues,
     chuteNames: Array.from({ length: 3 }, (_, index) => {
       const name = String(value.chuteNames?.[index] || '').trim().toUpperCase();
       return /^MU\d{3}$/.test(name) ? name : '';
