@@ -113,9 +113,9 @@ function moveUld(uldId, target) {
   const origin = slots.find((slot) => state.assignments[slot] === uldId);
   if (!target) { if (origin) state.assignments[origin] = null; }
   else {
-    const displaced = state.assignments[target];
+    const displacedId = state.assignments[target];
     state.assignments[target] = uldId;
-    if (origin && origin !== target) state.assignments[origin] = displaced || null;
+    if (origin && origin !== target) state.assignments[origin] = displacedId || null;
   }
   selectedUld = null;
   render(); save('Assignment updated');
@@ -390,7 +390,7 @@ function autoAssignFromRequirements() {
   });
   const rowSlots = { row1: slotPools.row1, row2: slotPools.row2, row3: slotPools.row3 };
   const openIndexes = (rowName) => rowSlots[rowName].map((slot, index) => nextAssignments[slot] ? null : index).filter((index) => index !== null);
-  const hasOpenFloorSpace = () => ['row1', 'row2', 'row3'].some((rowName) => openIndexes(rowName).length);
+  const hasOpenStandardSpace = () => ['row1', 'row2'].some((rowName) => openIndexes(rowName).length);
   const placeAtIndex = (rowName, index, group) => {
     const uld = group.ulds.shift();
     if (!uld) return false;
@@ -415,9 +415,9 @@ function autoAssignFromRequirements() {
     return map;
   }, new Map()).values()].sort((a, b) => b.ulds.length - a.ulds.length || commodityWindowRank(b.commodity) - commodityWindowRank(a.commodity));
   priorityT2TGroups.forEach((group, index) => {
-    const rows = index === 0 ? ['row2', 'row3', 'row1'] : ['row3', 'row2', 'row1'];
+    const rows = index === 0 ? ['row2', 'row1'] : ['row1', 'row2'];
     placeGroupFromStart(rows[0], group);
-    while (group.ulds.length && hasOpenFloorSpace()) {
+    while (group.ulds.length && hasOpenStandardSpace()) {
       if (!rows.some((rowName) => placeOneFromEnd(rowName, group))) break;
     }
     overflow.push(...group.ulds);
@@ -434,7 +434,10 @@ function autoAssignFromRequirements() {
 
   const highGroups = groupedUlds.filter((group) => group.prefersRow3);
   const standardGroups = groupedUlds.filter((group) => !group.prefersRow3);
-  if (highGroups[0]) placeGroupFromStart('row3', highGroups[0]);
+  if (highGroups[0]) {
+    placeGroupFromStart('row2', highGroups[0]);
+    if (highGroups[0].ulds.length) placeGroupFromStart('row1', highGroups[0]);
+  }
   if (standardGroups[0]) {
     placeGroupFromStart('row2', standardGroups[0]);
     if (standardGroups[0].ulds.length) placeGroupFromStart('row1', standardGroups[0]);
@@ -444,8 +447,8 @@ function autoAssignFromRequirements() {
     .filter((group) => group.ulds.length)
     .sort((a, b) => a.ulds.length - b.ulds.length || commodityWindowRank(a.commodity) - commodityWindowRank(b.commodity))
     .forEach((group) => {
-      const rows = group.prefersRow3 ? ['row3', 'row2', 'row1'] : ['row2', 'row1', 'row3'];
-      while (group.ulds.length && hasOpenFloorSpace()) {
+      const rows = group.prefersRow3 ? ['row2', 'row1'] : ['row2', 'row1'];
+      while (group.ulds.length && hasOpenStandardSpace()) {
         if (!rows.some((rowName) => placeOneFromEnd(rowName, group))) break;
       }
       overflow.push(...group.ulds);
