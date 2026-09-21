@@ -23,7 +23,7 @@
       <section id="board-page" class="page active">
         <div class="page-heading">
           <div><p class="eyebrow">OPERATIONS OVERVIEW</p><h1>Bagroom assignments</h1><p>Drag containers between chute positions and spare parking.</p></div>
-          <div class="heading-actions"><div class="date-chip" id="today"></div><button class="button export-button" id="export-photo" type="button">Export floor photo</button></div>
+          <div class="heading-actions"><div class="date-chip" id="today"></div><button class="button export-button" id="export-barcodes" type="button">Export barcode sheet</button><button class="button export-button" id="export-photo" type="button">Export floor photo</button></div>
         </div>
         <div class="summary" id="summary"></div>
         <div class="move-banner" id="move-banner" aria-live="polite"><span>Tap a ULD, then tap its destination.</span><button id="cancel-move">Cancel</button></div>
@@ -73,8 +73,8 @@
       </section>
     </main>
     <dialog class="export-dialog" id="export-dialog">
-      <div class="export-dialog-heading"><div><p class="eyebrow">PNG PREVIEW</p><h2>Floor layout ready</h2></div><button class="dialog-close" id="close-export" type="button" aria-label="Close export preview">×</button></div>
-      <img id="export-preview" alt="Exported Bagroom floor layout preview" />
+      <div class="export-dialog-heading"><div><p class="eyebrow">PNG PREVIEW</p><h2 id="export-title">Export ready</h2></div><button class="dialog-close" id="close-export" type="button" aria-label="Close export preview">×</button></div>
+      <img id="export-preview" alt="Exported Bagroom preview" />
       <div class="export-dialog-actions"><button class="button" id="cancel-export" type="button">Close</button><button class="button" id="share-export" type="button" hidden>Share PNG</button><a class="button primary" id="save-export" download>Download PNG</a></div>
     </dialog>
     <div id="toast" role="status" aria-live="polite"></div>

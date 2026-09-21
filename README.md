@@ -6,6 +6,8 @@ Each chute can be named in Setup using an `MU###` identifier, such as `MU101`.
 
 The Assignment Board can be exported as a PNG floor-layout image using the **Export floor photo** button. Image creation happens locally in the browser.
 
+The Assignment Board can also export a printable PNG barcode layout using **Export barcode sheet**. ULD barcodes render as Code 128.
+
 ## Run with Docker Compose
 
 ```sh

@@ -9,6 +9,8 @@ let selectedUld = null;
 let saveTimer;
 let exportPngUrl = null;
 let exportPngBlob = null;
+let exportPngTitle = 'Bagroom Export';
+let exportPngFilename = 'bagroom-export.png';
 
 const $ = (selector) => document.querySelector(selector);
 const escapeHtml = (value) => String(value).replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character]);
@@ -202,6 +204,49 @@ function commodityWindowRank(commodity) {
 
 function isHighTransferCommodity(commodity) {
   return commodityWindowRank(commodity) >= commodityWindowRank('B3A');
+}
+
+function floorOrderedUlds() {
+  const ordered = slots.map((slot) => findUld(state.assignments[slot])).filter(Boolean);
+  const assigned = new Set(ordered.map((uld) => uld.id));
+  return [...ordered, ...state.ulds.filter((uld) => !assigned.has(uld.id)).sort((a, b) => a.number.localeCompare(b.number))];
+}
+
+function drawBarcode128(context, value, x, y, width, height) {
+  const patterns = [
+    '212222', '222122', '222221', '121223', '121322', '131222', '122213', '122312', '132212', '221213', '221312', '231212', '112232', '122132', '122231', '113222', '123122', '123221', '223211', '221132', '221231', '213212', '223112', '312131', '311222', '321122', '321221', '312212', '322112', '322211', '212123', '212321', '232121', '111323', '131123', '131321', '112313', '132113', '132311', '211313', '231113', '231311', '112133', '112331', '132131', '113123', '113321', '133121', '313121', '211331', '231131', '213113', '213311', '213131', '311123', '311321', '331121', '312113', '312311', '332111', '314111', '221411', '431111', '111224', '111422', '121124', '121421', '141122', '141221', '112214', '112412', '122114', '122411', '142112', '142211', '241211', '221114', '413111', '241112', '134111', '111242', '121142', '121241', '114212', '124112', '124211', '411212', '421112', '421211', '212141', '214121', '412121', '111143', '111341', '131141', '114113', '114311', '411113', '411311', '113141', '114131', '311141', '411131', '211412', '211214', '211232', '2331112'
+  ];
+  const codes = [104, ...value.split('').map((character) => character.charCodeAt(0) - 32)];
+  const checksum = codes.reduce((sum, code, index) => sum + code * (index || 1), 0) % 103;
+  codes.push(checksum, 106);
+  const moduleCount = codes.reduce((sum, code) => sum + patterns[code].split('').reduce((total, digit) => total + Number(digit), 0), 0);
+  const moduleWidth = width / moduleCount;
+  let cursor = x;
+  context.fillStyle = '#050505';
+  codes.forEach((code) => {
+    patterns[code].split('').forEach((digit, index) => {
+      const segmentWidth = Number(digit) * moduleWidth;
+      if (index % 2 === 0) context.fillRect(cursor, y, Math.ceil(segmentWidth), height);
+      cursor += segmentWidth;
+    });
+  });
+}
+
+async function showPngExport({ blob, title, filename, toastMessage }) {
+  if (exportPngUrl) URL.revokeObjectURL(exportPngUrl);
+  exportPngBlob = blob;
+  exportPngTitle = title;
+  exportPngFilename = filename;
+  exportPngUrl = URL.createObjectURL(blob);
+  $('#export-title').textContent = title;
+  $('#export-preview').src = exportPngUrl;
+  $('#save-export').href = exportPngUrl;
+  $('#save-export').download = filename;
+  const shareFile = new File([exportPngBlob], filename, { type: 'image/png' });
+  $('#share-export').hidden = !(navigator.share && navigator.canShare?.({ files: [shareFile] }));
+  const dialog = $('#export-dialog');
+  if (typeof dialog.showModal === 'function') dialog.showModal(); else dialog.setAttribute('open', '');
+  toast(toastMessage);
 }
 
 function autoAssignFromRequirements() {
@@ -448,20 +493,93 @@ async function exportFloorPhoto() {
     spares.forEach((uld, index) => drawUld(uld, spareX + 18, 210 + index * 112, spareWidth - 36, 100));
 
     const png = await new Promise((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('PNG creation failed')), 'image/png'));
-    if (exportPngUrl) URL.revokeObjectURL(exportPngUrl);
-    exportPngBlob = png;
-    exportPngUrl = URL.createObjectURL(png);
-    $('#export-preview').src = exportPngUrl;
-    const filename = `bagroom-layout-${new Date().toISOString().slice(0, 10)}.png`;
-    $('#save-export').href = exportPngUrl;
-    $('#save-export').download = filename;
-    const shareFile = new File([exportPngBlob], filename, { type: 'image/png' });
-    $('#share-export').hidden = !(navigator.share && navigator.canShare?.({ files: [shareFile] }));
-    const dialog = $('#export-dialog');
-    if (typeof dialog.showModal === 'function') dialog.showModal(); else dialog.setAttribute('open', '');
-    toast('Floor photo ready');
+    await showPngExport({
+      blob: png,
+      title: 'Floor layout ready',
+      filename: `bagroom-layout-${new Date().toISOString().slice(0, 10)}.png`,
+      toastMessage: 'Floor photo ready'
+    });
   } catch (error) {
     toast('Could not create floor photo');
+  } finally {
+    button.disabled = false;
+    button.textContent = originalLabel;
+  }
+}
+
+async function exportBarcodeSheet() {
+  const button = $('#export-barcodes');
+  const originalLabel = button.textContent;
+  if (!state.ulds.length) return toast('Import ULD numbers first');
+  button.disabled = true;
+  button.textContent = 'Creating barcodes…';
+  try {
+    const canvas = document.createElement('canvas');
+    const spares = spareUlds();
+    canvas.width = 1600;
+    canvas.height = Math.max(980, 240 + spares.length * 118);
+    const context = canvas.getContext('2d');
+    const rounded = (x, y, width, height, radius, fill, stroke) => {
+      const r = Math.min(radius, width / 2, height / 2);
+      context.beginPath(); context.moveTo(x + r, y); context.lineTo(x + width - r, y); context.quadraticCurveTo(x + width, y, x + width, y + r); context.lineTo(x + width, y + height - r); context.quadraticCurveTo(x + width, y + height, x + width - r, y + height); context.lineTo(x + r, y + height); context.quadraticCurveTo(x, y + height, x, y + height - r); context.lineTo(x, y + r); context.quadraticCurveTo(x, y, x + r, y); context.closePath();
+      if (fill) { context.fillStyle = fill; context.fill(); }
+      if (stroke) { context.strokeStyle = stroke; context.lineWidth = 2; context.stroke(); }
+    };
+    const text = (value, x, y, size, color = '#eef8f4', weight = 600, align = 'left') => {
+      context.fillStyle = color; context.font = `${weight} ${size}px system-ui, sans-serif`; context.textAlign = align; context.fillText(String(value), x, y);
+    };
+    const drawBarcodeUld = (uld, x, y, width, height) => {
+      rounded(x, y, width, height, 12, '#1b493c', '#4a806e');
+      text(uld.number, x + width / 2, y + 26, 15, '#ffffff', 850, 'center');
+      rounded(x + 10, y + 36, width - 20, 52, 8, '#f7faf7', '#d6ded9');
+      const barcodeX = x + 18;
+      const barcodeY = y + 45;
+      const barcodeWidth = width - 36;
+      const barcodeHeight = 31;
+      drawBarcode128(context, uld.number, barcodeX, barcodeY, barcodeWidth, barcodeHeight);
+      if (uld.commodity) text(uld.commodity, x + width / 2, y + height - 13, 10, '#d1e0da', 850, 'center');
+      if (isT2T(uld)) { rounded(x + width - 48, y + height - 28, 36, 20, 5, '#ff9d55'); text('T2T', x + width - 30, y + height - 14, 9, '#251308', 900, 'center'); }
+    };
+
+    context.fillStyle = '#08110f'; context.fillRect(0, 0, canvas.width, canvas.height);
+    const gradient = context.createRadialGradient(1250, 0, 0, 1250, 0, 800);
+    gradient.addColorStop(0, 'rgba(77,157,122,.20)'); gradient.addColorStop(1, 'rgba(8,17,15,0)');
+    context.fillStyle = gradient; context.fillRect(0, 0, canvas.width, canvas.height);
+    text('BAGROOM BARCODE LAYOUT', 55, 67, 30, '#eef8f4', 850);
+    text(new Intl.DateTimeFormat([], { dateStyle: 'medium', timeStyle: 'short' }).format(new Date()), 55, 101, 17, '#8fa39c', 500);
+    text('Same floor layout with scannable ULD barcodes', 1545, 94, 16, '#8fa39c', 700, 'right');
+
+    const floorX = 50; const floorWidth = 1120; const slotGap = 15; const slotWidth = (floorWidth - 55 - slotGap * 3) / 4;
+    for (let row = 0; row < 3; row++) {
+      const bandY = 140 + row * 260;
+      rounded(floorX, bandY, floorWidth, 230, 14, '#10201b', '#29483e');
+      context.fillStyle = '#b9f15d'; context.beginPath(); context.arc(floorX + 25, bandY + 30, 6, 0, Math.PI * 2); context.fill();
+      text(state.chuteNames[row] || 'MU###', floorX + 43, bandY + 37, 20, '#b9f15d', 850);
+      for (let position = 0; position < 4; position++) {
+        const x = floorX + 20 + position * (slotWidth + slotGap);
+        const y = bandY + 60;
+        rounded(x, y, slotWidth, 145, 12, '#0b1714', '#354f46');
+        text(`P${position + 1}`, x + 12, y + 23, 13, '#6f887f', 800);
+        const uld = findUld(state.assignments[`slot-${row * 4 + position + 1}`]);
+        if (uld) drawBarcodeUld(uld, x + 8, y + 31, slotWidth - 16, 106);
+      }
+    }
+
+    const spareX = 1205; const spareWidth = 345;
+    rounded(spareX, 140, spareWidth, canvas.height - 190, 14, '#10201b', '#29483e');
+    text('SPARE PARKING', spareX + 22, 183, 20, '#b9f15d', 850);
+    text(`${spares.length} ULD${spares.length === 1 ? '' : 'S'}`, spareX + spareWidth - 22, 183, 14, '#8fa39c', 700, 'right');
+    spares.forEach((uld, index) => drawBarcodeUld(uld, spareX + 18, 210 + index * 118, spareWidth - 36, 106));
+
+    const png = await new Promise((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('PNG creation failed')), 'image/png'));
+    await showPngExport({
+      blob: png,
+      title: 'Barcode layout ready',
+      filename: `bagroom-barcode-layout-${new Date().toISOString().slice(0, 10)}.png`,
+      toastMessage: 'Barcode layout ready'
+    });
+  } catch (error) {
+    toast('Could not create barcode layout');
   } finally {
     button.disabled = false;
     button.textContent = originalLabel;
@@ -558,12 +676,16 @@ $('#reset-uld-details').addEventListener('click', () => {
 
 $('#uld-search').addEventListener('input', renderRoster);
 $('#cancel-move').addEventListener('click', () => { selectedUld = null; renderBoard(); });
+$('#export-barcodes').addEventListener('click', exportBarcodeSheet);
 $('#export-photo').addEventListener('click', exportFloorPhoto);
 
 function cleanupExportPreview() {
   if (exportPngUrl) URL.revokeObjectURL(exportPngUrl);
   exportPngUrl = null;
   exportPngBlob = null;
+  exportPngTitle = 'Bagroom Export';
+  exportPngFilename = 'bagroom-export.png';
+  $('#export-title').textContent = 'Export ready';
   $('#export-preview').removeAttribute('src');
   $('#save-export').removeAttribute('href');
   $('#share-export').hidden = true;
@@ -584,11 +706,10 @@ $('#cancel-export').addEventListener('click', closeExport);
 $('#export-dialog').addEventListener('click', (event) => { if (event.target === $('#export-dialog')) closeExport(); });
 $('#export-dialog').addEventListener('close', cleanupExportPreview);
 $('#share-export').addEventListener('click', async () => {
-  if (!exportPngBlob) return toast('Create the floor photo again');
-  const filename = `bagroom-layout-${new Date().toISOString().slice(0, 10)}.png`;
-  const file = new File([exportPngBlob], filename, { type: 'image/png' });
+  if (!exportPngBlob) return toast('Create the export again');
+  const file = new File([exportPngBlob], exportPngFilename, { type: 'image/png' });
   try {
-    await navigator.share({ title: 'Bagroom Floor Layout', files: [file] });
+    await navigator.share({ title: exportPngTitle, files: [file] });
   } catch (error) {
     if (error.name !== 'AbortError') toast('Sharing failed — use Download PNG');
   }
