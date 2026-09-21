@@ -1,0 +1,36 @@
+name: Deploy to Payback
+
+on:
+  push:
+    branches:
+      - main
+permissions: {}
+
+concurrency:
+  group: bagroom-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy Bagroom
+    runs-on:
+      - self-hosted
+      - linux
+
+    steps:
+      - name: Update Bagroom
+        run: |
+          set -e
+
+          echo "=== Updating repository ==="
+          cd /root/Bagroom
+
+          git pull
+
+          echo "=== Updating Docker ==="
+          docker restart bagroom-bagroom-1
+
+          echo "=== Container status ==="
+          docker ps
+
+          echo "=== Deployment complete ==="
